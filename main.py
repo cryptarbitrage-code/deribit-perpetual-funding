@@ -43,7 +43,6 @@ while first_day_timestamp > oldest_date:
 all_timestamps.reverse()  # put timestamps in chronological order
 
 print(all_timestamps)
-print(len(all_timestamps))
 
 
 @RateLimiter(max_calls=5, period=1)
@@ -58,8 +57,6 @@ def get_funding_data(instrument, start_timestamp, end_timestamp):
         dates.append(date_value)
         h8_interest.append(entry['interest_8h'] * 100)  # also changes value from decimal to percentage
 
-    #print('length of dates: ', len(dates))
-    #print('length of h8 interest: ', len(h8_interest))
     # slice lists to get every 8th hour
     # slice should be [7::8] to cover month properly but Deribit api data is so off when set to 7
     dates_sliced = dates[6::8]
@@ -77,7 +74,7 @@ def plot_charts():
     for widgets in chart2_frame.winfo_children():
         widgets.destroy()
 
-    # x-axis formatting
+    # for x-axis formatting
     month_locator = mdates.MonthLocator()
     quarterly_locator = mdates.MonthLocator(interval=3)
 
@@ -96,7 +93,6 @@ def plot_charts():
             for interest in h8_interest:
                 h8_interest_all.append(interest)
 
-    print(len(h8_interest_all))
     h8_interest_np = np.array(h8_interest_all)
     zero_np = np.array([0] * len(h8_interest_all))
 
