@@ -14,7 +14,7 @@ chart_size = (12, 4)
 
 # tkinter set up
 root = Tk()
-root.title("Option Visualiser - Cryptarbitrage")
+root.title("Deribit Historical Funding Rates - Cryptarbitrage")
 root.iconbitmap('cryptarbitrage_icon_96px.ico')
 root.minsize(400, 200)
 
