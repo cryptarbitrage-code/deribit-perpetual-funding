@@ -5,11 +5,16 @@ The testnet data is not the same at all.
 
 <img src="images/1-overview.JPG">
 
+The top chart shows the 8 hour funding rates, as well as the cumulative funding over that time period.
+The second chart shows the monthly funding totals.
+
 Go to https://github.com/cryptarbitrage-code/deribit-perpetual-funding for the latest code.
 
 Follow me on https://twitter.com/cryptarbitrage for other free resources and content.
 
 Deribit ref-link: https://www.deribit.com/?reg=1332.557&q=home (10% discount on trading fees)
+
+<img src="images/2-overview.JPG">
 
 ## GUI and Charts
 Tkinter is used for the GUI, and Matplotlib is used to plot the charts.
