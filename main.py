@@ -47,13 +47,9 @@ all_timestamps.reverse()  # put timestamps in chronological order
 latest_dates = all_month_starts.copy()
 latest_dates.insert(0, date.today().replace(day=1))
 
-print(all_month_starts)
-print(all_timestamps)
-
 
 @RateLimiter(max_calls=5, period=1)
 def get_funding_data(instrument, start_timestamp, end_timestamp):
-    print('get_funding_data cycle', start_timestamp, end_timestamp)
     # pulls in funding history data
     funding_data = get_funding_rate_history(instrument, start_timestamp, end_timestamp)
     dates = []
@@ -67,8 +63,6 @@ def get_funding_data(instrument, start_timestamp, end_timestamp):
     # slice should be [7::8] to cover month entirely but Deribit api data is so off when set to 7
     dates_sliced = dates[6::8]
     h8_interest_sliced = h8_interest[6::8]
-    print('h8 interest sliced: ', h8_interest_sliced)
-    print('sum of 8h interest: ', sum(h8_interest_sliced))
 
     return dates_sliced, h8_interest_sliced
 
@@ -103,7 +97,6 @@ def plot_charts():
     else:  # if start_date is after end_date, it will calculate from start_date to present
         selected_timestamps = timestamps_to_present.copy()
 
-    print(selected_timestamps)
     # pull in funding data for selected period
     for month in range(0, len(selected_timestamps)-1):
         instrument = selected_instrument.get()
@@ -116,8 +109,16 @@ def plot_charts():
             for interest in h8_interest:
                 h8_interest_all.append(interest)
 
+    # arrays for the coloured fills
     h8_interest_np = np.array(h8_interest_all)
     zero_np = np.array([0] * len(h8_interest_all))
+    # create list of cumulative funding
+    cumulative_funding = []
+    current_cumulative = h8_interest_all[0]
+    cumulative_funding.append(current_cumulative)
+    for i in h8_interest_all[1:]:
+        current_cumulative += i
+        cumulative_funding.append(current_cumulative)
 
     # CHART 1: 8 hour historical funding rates
     # the figure that will contain the plot
@@ -125,14 +126,22 @@ def plot_charts():
     # adding the subplot
     plot1 = fig1.add_subplot(111)
     # plotting the graph
-    plot1.plot(x_range_all, h8_interest_all, linewidth=0.5, label='Funding rate')
+    plot1.plot(x_range_all, h8_interest_all, color='#1f77b4', linewidth=0.6)
     plot1.fill_between(x_range_all, h8_interest_all, 0, where=(h8_interest_np < zero_np), facecolor='red', interpolate=True, alpha=0.15)
     plot1.fill_between(x_range_all, h8_interest_all, 0, where=(h8_interest_np >= zero_np), facecolor='green', interpolate=True, alpha=0.15)
     plot1.set_xlabel('Date')
     plot1.set_ylabel('Funding Rate %/8 Hours')
+    plot1.tick_params(axis='y', labelcolor='#1f77b4')
     # plot1.set_title('Chart Title')
-    plot1.legend()
+    # plot1.legend()
     plot1.grid(True, alpha=0.25)
+
+    # cumulative funding plot
+    plot1_b = plot1.twinx()
+    plot1_b.plot(x_range_all, cumulative_funding, color='green', linewidth=0.7)
+    plot1_b.tick_params(axis='y', labelcolor='green')
+    plot1_b.set_ylabel('Cumulative funding %')
+
     # x-axis formatting
     plot1.xaxis.set_minor_locator(month_locator)
     plot1.xaxis.set_major_locator(quarterly_locator)
