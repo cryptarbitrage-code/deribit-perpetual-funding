@@ -44,6 +44,9 @@ while first_day_timestamp > oldest_date:
 
 all_timestamps.reverse()  # put timestamps in chronological order
 
+latest_dates = all_month_starts.copy()
+latest_dates.insert(0, date.today().replace(day=1))
+
 print(all_month_starts)
 print(all_timestamps)
 
@@ -61,7 +64,7 @@ def get_funding_data(instrument, start_timestamp, end_timestamp):
         h8_interest.append(entry['interest_8h'] * 100)  # also changes value from decimal to percentage
 
     # slice lists to get every 8th hour
-    # slice should be [7::8] to cover month properly but Deribit api data is so off when set to 7
+    # slice should be [7::8] to cover month entirely but Deribit api data is so off when set to 7
     dates_sliced = dates[6::8]
     h8_interest_sliced = h8_interest[6::8]
     print('h8 interest sliced: ', h8_interest_sliced)
@@ -85,12 +88,23 @@ def plot_charts():
     h8_interest_all = []
     months = []
     monthly_funding_totals = []
-    # create list of selected timestamps
+    start_date = (datetime.strptime(selected_oldest_date.get(), '%Y-%m-%d').date())
+    end_date = (datetime.strptime(selected_latest_date.get(), '%Y-%m-%d').date())
+    # create lists for selected timestamps
+    timestamps_to_present = []
     selected_timestamps = []
     for i in all_timestamps:
-        if i >= (datetime.strptime(selected_oldest_date.get(), '%Y-%m-%d').date() - date(1970, 1, 1)).days * DAY * 1000:
-            selected_timestamps.append(i)
+        if i >= (start_date - date(1970, 1, 1)).days * DAY * 1000:
+            timestamps_to_present.append(i)
+    if start_date < end_date:
+        for i in timestamps_to_present:
+            if i <= (end_date - date(1970, 1, 1)).days * DAY * 1000:
+                selected_timestamps.append(i)
+    else:  # if start_date is after end_date, it will calculate from start_date to present
+        selected_timestamps = timestamps_to_present.copy()
 
+    print(selected_timestamps)
+    # pull in funding data for selected period
     for month in range(0, len(selected_timestamps)-1):
         instrument = selected_instrument.get()
         if selected_timestamps[month + 1]:
@@ -179,11 +193,19 @@ instrument_dropdown.config(width=16)
 
 selected_oldest_date = StringVar()
 selected_oldest_date.set(all_month_starts[0])
-oldest_date_label = Label(details_frame, text="Look back to: ")
+oldest_date_label = Label(details_frame, text="Oldest date: ")
 oldest_date_label.grid(row=1, column=0)
 oldest_date_dropdown = OptionMenu(details_frame, selected_oldest_date, *all_month_starts)
 oldest_date_dropdown.grid(row=1, column=1)
 oldest_date_dropdown.config(width=16)
+
+selected_latest_date = StringVar()
+selected_latest_date.set(latest_dates[0])
+latest_date_label = Label(details_frame, text="Latest date: ")
+latest_date_label.grid(row=2, column=0)
+latest_date_dropdown = OptionMenu(details_frame, selected_latest_date, *latest_dates)
+latest_date_dropdown.grid(row=2, column=1)
+latest_date_dropdown.config(width=16)
 
 # button that displays the plot
 plot_button = Button(master=details_frame,
@@ -193,6 +215,6 @@ plot_button = Button(master=details_frame,
                      text="Plot",
                      bg="#88bb88")
 
-plot_button.grid(row=2, column=1)
+plot_button.grid(row=3, column=1)
 
 root.mainloop()
