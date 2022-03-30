@@ -1,6 +1,6 @@
 from tkinter import *
 import datetime
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
@@ -30,6 +30,7 @@ chart2_frame.grid(row=2, column=1, padx=2, pady=2)
 DAY = 24*60*60  # day in seconds
 oldest_date = 1556668800000  # time that data will be collected back to, 1556668800000 = 1st May 2019 00:00
 all_timestamps = []
+all_month_starts = []
 first_day_of_month = date.today().replace(day=1)  # initially set to day 1 of current the month
 first_day_timestamp = (first_day_of_month - date(1970, 1, 1)).days * DAY * 1000
 all_timestamps.append(first_day_timestamp)
@@ -37,11 +38,13 @@ all_timestamps.append(first_day_timestamp)
 while first_day_timestamp > oldest_date:
     last_day_of_prev_month = first_day_of_month.replace(day=1) - timedelta(days=1)
     first_day_of_month = last_day_of_prev_month.replace(day=1)
+    all_month_starts.append(first_day_of_month)
     first_day_timestamp = (first_day_of_month - date(1970, 1, 1)).days * DAY * 1000
     all_timestamps.append(first_day_timestamp)
 
 all_timestamps.reverse()  # put timestamps in chronological order
 
+print(all_month_starts)
 print(all_timestamps)
 
 
@@ -53,7 +56,7 @@ def get_funding_data(instrument, start_timestamp, end_timestamp):
     dates = []
     h8_interest = []
     for entry in funding_data:
-        date_value = datetime.datetime.utcfromtimestamp(entry['timestamp']/1000)
+        date_value = datetime.utcfromtimestamp(entry['timestamp']/1000)
         dates.append(date_value)
         h8_interest.append(entry['interest_8h'] * 100)  # also changes value from decimal to percentage
 
@@ -82,11 +85,17 @@ def plot_charts():
     h8_interest_all = []
     months = []
     monthly_funding_totals = []
-    for month in range(0, len(all_timestamps)-1):
+    # create list of selected timestamps
+    selected_timestamps = []
+    for i in all_timestamps:
+        if i >= (datetime.strptime(selected_oldest_date.get(), '%Y-%m-%d').date() - date(1970, 1, 1)).days * DAY * 1000:
+            selected_timestamps.append(i)
+
+    for month in range(0, len(selected_timestamps)-1):
         instrument = selected_instrument.get()
-        if all_timestamps[month + 1]:
-            x_range, h8_interest = get_funding_data(instrument, all_timestamps[month], all_timestamps[month + 1])
-            months.append(datetime.datetime.utcfromtimestamp(all_timestamps[month]/1000))
+        if selected_timestamps[month + 1]:
+            x_range, h8_interest = get_funding_data(instrument, selected_timestamps[month], selected_timestamps[month + 1])
+            months.append(datetime.utcfromtimestamp(selected_timestamps[month]/1000))
             monthly_funding_totals.append(sum(h8_interest))
             for time in x_range:
                 x_range_all.append(time)
@@ -168,6 +177,14 @@ instrument_dropdown = OptionMenu(details_frame, selected_instrument, "BTC-PERPET
 instrument_dropdown.grid(row=0, column=1)
 instrument_dropdown.config(width=16)
 
+selected_oldest_date = StringVar()
+selected_oldest_date.set(all_month_starts[0])
+oldest_date_label = Label(details_frame, text="Look back to: ")
+oldest_date_label.grid(row=1, column=0)
+oldest_date_dropdown = OptionMenu(details_frame, selected_oldest_date, *all_month_starts)
+oldest_date_dropdown.grid(row=1, column=1)
+oldest_date_dropdown.config(width=16)
+
 # button that displays the plot
 plot_button = Button(master=details_frame,
                      command=plot_charts,
@@ -176,6 +193,6 @@ plot_button = Button(master=details_frame,
                      text="Plot",
                      bg="#88bb88")
 
-plot_button.grid(row=4, column=1)
+plot_button.grid(row=2, column=1)
 
 root.mainloop()
