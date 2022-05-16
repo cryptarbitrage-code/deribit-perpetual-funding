@@ -19,7 +19,7 @@ Deribit ref-link: https://www.deribit.com/?reg=1332.557&q=home (10% discount on 
 ## GUI and Charts
 Tkinter is used for the GUI, and Matplotlib is used to plot the charts.
 
-## Deribit API enpoints
+## Deribit API endpoints
 This program uses the following api endpoints:
 
 get_funding_rate_history 
