@@ -196,7 +196,7 @@ selected_instrument = StringVar()
 selected_instrument.set("BTC-PERPETUAL")
 instrument_label = Label(details_frame, text="Instrument: ")
 instrument_label.grid(row=0, column=0)
-instrument_dropdown = OptionMenu(details_frame, selected_instrument, "BTC-PERPETUAL", "ETH-PERPETUAL")
+instrument_dropdown = OptionMenu(details_frame, selected_instrument, "BTC-PERPETUAL", "ETH-PERPETUAL", "SOL-PERPETUAL")
 instrument_dropdown.grid(row=0, column=1)
 instrument_dropdown.config(width=16)
 

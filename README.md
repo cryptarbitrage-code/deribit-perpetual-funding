@@ -1,4 +1,4 @@
-# Deribit Position Greeks
+# Deribit Perpetual Funding
 Python code that pulls in and displays historical funding data for the perpetual contracts on Deribit.
 Be sure to edit the settings.py to the production site once you're ready to look at production data.
 The testnet data is not the same at all.
