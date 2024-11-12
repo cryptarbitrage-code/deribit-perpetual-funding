@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 from api_functions import get_funding_rate_history
 from ratelimiter import RateLimiter
+import csv
 
 # Some chart parameters
 chart_size = (12, 4)
@@ -167,6 +168,8 @@ def plot_charts():
     plot2_colours = ["red" if i < 0 else "green" for i in monthly_funding_totals]
     # plotting the graph
     plot2.bar(months, monthly_funding_totals, width=4, label='Funding rate', color=plot2_colours)
+    print('months', months)
+    print('monthly_funding_totals', monthly_funding_totals)
     plot2.set_xlabel('Date')
     plot2.set_ylabel('Funding Total %')
     plot2.grid(True, alpha=0.25)
@@ -176,6 +179,19 @@ def plot_charts():
 
     fig2.autofmt_xdate()
     fig2.tight_layout()
+
+    # save the monthly totals into csv
+    # will overwrite each time
+    # convert datetime objects to strings
+    months = [dt.strftime('%Y-%m') for dt in months]
+    # zip together the two lists
+    rows = zip(months, monthly_funding_totals)
+    instrument_name = selected_instrument.get()
+    # write to csv
+    with open(f'{instrument_name} monthly funding totals.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Month", "Funding Total (%)"])  # writing headers
+        writer.writerows(rows)  # writing data
 
     # creating the Tkinter canvas containing the Matplotlib figure
     canvas2 = FigureCanvasTkAgg(fig2, master=chart2_frame)
@@ -196,7 +212,7 @@ selected_instrument = StringVar()
 selected_instrument.set("BTC-PERPETUAL")
 instrument_label = Label(details_frame, text="Instrument: ")
 instrument_label.grid(row=0, column=0)
-instrument_dropdown = OptionMenu(details_frame, selected_instrument, "BTC-PERPETUAL", "ETH-PERPETUAL", "SOL-PERPETUAL")
+instrument_dropdown = OptionMenu(details_frame, selected_instrument, "BTC-PERPETUAL", "BTC_USDC-PERPETUAL", "ETH-PERPETUAL", "ETH_USDC-PERPETUAL", "SOL_USDC-PERPETUAL")
 instrument_dropdown.grid(row=0, column=1)
 instrument_dropdown.config(width=16)
 
