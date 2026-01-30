@@ -7,8 +7,30 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 from api_functions import get_funding_rate_history
-from ratelimiter import RateLimiter
 import csv
+from limits import RateLimitItemPerSecond
+from limits.strategies import FixedWindowRateLimiter
+from limits.storage import MemoryStorage
+
+# 5 calls per second (process-local). For multi-process/multi-machine use RedisStorage.
+_storage = MemoryStorage()
+_limiter = FixedWindowRateLimiter(_storage)
+_rate = RateLimitItemPerSecond(5)
+
+def _rate_limit():
+    # blocks (sleep) until we can consume a token
+    while not _limiter.hit(_rate, "deribit:get_funding_data"):
+        # wait until the window resets
+        reset_in = _limiter.get_window_stats(_rate, "deribit:get_funding_data").reset_time
+        # reset_time is an epoch timestamp (seconds)
+        sleep_for = max(0.0, reset_in - datetime.now().timestamp())
+        if sleep_for:
+            import time
+            time.sleep(sleep_for)
+        else:
+            # tiny backoff in case of timing edge
+            import time
+            time.sleep(0.001)
 
 # Some chart parameters
 chart_size = (12, 4)
@@ -48,9 +70,8 @@ all_timestamps.reverse()  # put timestamps in chronological order
 latest_dates = all_month_starts.copy()
 latest_dates.insert(0, date.today().replace(day=1))
 
-
-@RateLimiter(max_calls=5, period=1)
 def get_funding_data(instrument, start_timestamp, end_timestamp):
+    _rate_limit()
     # pulls in funding history data
     funding_data = get_funding_rate_history(instrument, start_timestamp, end_timestamp)
     dates = []
