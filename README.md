@@ -1,3 +1,7 @@
+Update January 2026: Added separate script to pull monthly data via get_funding_rate_value, and another to view it in a Dash app.
+
+<img src="images/Screenshot 2026-02-04 003000.png">
+
 # Deribit Perpetual Funding
 Python code that pulls in and displays historical funding data for the perpetual contracts on Deribit.
 Be sure to edit the settings.py to the production site once you're ready to look at production data.
