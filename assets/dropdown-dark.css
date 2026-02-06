@@ -1,0 +1,86 @@
+/* === Fix dcc.Dropdown readability on dark themes === */
+
+/* Dropdown menu background */
+.Select-menu-outer {
+    background-color: #2b2b2b !important;
+}
+
+/* Option text */
+.Select-option {
+    background-color: #2b2b2b !important;
+    color: #eaeaea !important;
+}
+
+/* Hovered option */
+.Select-option.is-focused {
+    background-color: #3a3a3a !important;
+    color: #ffffff !important;
+}
+
+/* Selected option */
+.Select-option.is-selected {
+    background-color: #444 !important;
+    color: #ffffff !important;
+}
+
+/* Placeholder + selected values */
+.Select-value-label,
+.Select-placeholder {
+    color: #eaeaea !important;
+}
+
+/* Input text */
+.Select-input > input {
+    color: #ffffff !important;
+}
+
+/* Multi-value pills */
+.Select--multi .Select-value {
+    background-color: #444 !important;
+    border-color: #666 !important;
+    color: #fff !important;
+}
+
+/* === Dropdown control (closed state) === */
+.Select-control {
+    background-color: #212529 !important;   /* Bootstrap bg-dark */
+    border-color: #444 !important;
+}
+
+/* Border + focus state */
+.Select.is-focused > .Select-control,
+.Select.is-open > .Select-control {
+    background-color: #212529 !important;
+    border-color: #666 !important;
+    box-shadow: none !important;
+}
+
+/* Caret / arrow */
+.Select-arrow {
+    border-top-color: #ccc !important;
+}
+
+/* Clear (x) icon */
+.Select-clear-zone {
+    color: #ccc !important;
+}
+
+/* === Dropdown menu container === */
+.Select-menu-outer {
+    background-color: #212529 !important;
+    border: 1px solid #444 !important;
+}
+
+/* Scrollbar (Chrome / Edge) */
+.Select-menu-outer::-webkit-scrollbar {
+    width: 8px;
+}
+
+.Select-menu-outer::-webkit-scrollbar-thumb {
+    background-color: #555;
+    border-radius: 4px;
+}
+
+.Select-menu-outer::-webkit-scrollbar-track {
+    background-color: #212529;
+}
