@@ -12,6 +12,17 @@ import plotly.graph_objects as go
 CSV_PATH = "funding_rate_value_monthly_backup.csv"
 BOOTSTRAP_THEME = dbc.themes.DARKLY
 
+MONTH_OPTIONS = [
+    {"label": "Jan", "value": 1}, {"label": "Feb", "value": 2}, {"label": "Mar", "value": 3},
+    {"label": "Apr", "value": 4}, {"label": "May", "value": 5}, {"label": "Jun", "value": 6},
+    {"label": "Jul", "value": 7}, {"label": "Aug", "value": 8}, {"label": "Sep", "value": 9},
+    {"label": "Oct", "value": 10}, {"label": "Nov", "value": 11}, {"label": "Dec", "value": 12},
+]
+
+# Years fixed (simple)
+VALID_YEARS = list(range(2019, 2027))
+YEAR_OPTIONS = [{"label": str(y), "value": y} for y in VALID_YEARS]
+
 
 # ---------- Data loading ----------
 def load_data(csv_path: str) -> tuple[pd.DataFrame, list[str]]:
@@ -38,28 +49,20 @@ DF_LONG = DF_WIDE.melt(
     value_name="funding_dec",
 ).sort_values(["month", "instrument"])
 
+# NOTE: We still compute all-time cum_dec for other uses if needed,
+# but the cumulative chart will recompute within the selected range.
 DF_LONG["cum_dec"] = DF_LONG.groupby("instrument")["funding_dec"].cumsum()
 
 
-# ---------- Units ----------
-UNITS = {
-    "dec": {"label": "Decimal", "mult": 1.0, "suffix": "", "fmt": ".6f"},
-    "pct": {"label": "%",       "mult": 100.0, "suffix": "%", "fmt": ".3f"},
-    "bp":  {"label": "bp",      "mult": 10000.0, "suffix": " bp", "fmt": ".1f"},
-}
-
-def apply_units(series: pd.Series, unit_key: str) -> pd.Series:
-    return series * UNITS[unit_key]["mult"]
-
-def y_label(unit_key: str, annualized: bool) -> str:
-    base = f"Funding ({UNITS[unit_key]['label']})"
-    return base + (" — annualized (×12)" if annualized else " — monthly")
+def _y_label_pct(annualized: bool) -> str:
+    return "Funding (%) — annualized (×12)" if annualized else "Funding (%) — monthly"
 
 
-def make_monthly_fig(df_long: pd.DataFrame, selected: list[str], unit_key: str, annualized: bool):
+def make_monthly_fig(df_long: pd.DataFrame, selected: list[str], annualized: bool):
     dff = df_long[df_long["instrument"].isin(selected)].copy()
 
-    y = apply_units(dff["funding_dec"], unit_key)
+    # Always percent
+    y = dff["funding_dec"] * 100.0
     if annualized:
         y = y * 12.0
     dff["y"] = y
@@ -71,7 +74,7 @@ def make_monthly_fig(df_long: pd.DataFrame, selected: list[str], unit_key: str, 
         color="instrument",
         markers=True,
         title="Monthly funding",
-        labels={"month": "Month", "y": y_label(unit_key, annualized), "instrument": "Instrument"},
+        labels={"month": "Month", "y": _y_label_pct(annualized), "instrument": "Instrument"},
     )
 
     fig.update_layout(
@@ -79,29 +82,72 @@ def make_monthly_fig(df_long: pd.DataFrame, selected: list[str], unit_key: str, 
         hovermode="x unified",
         legend_title_text="",
         margin=dict(l=20, r=20, t=60, b=20),
+        height=600,
     )
     return fig
 
 
-def make_cum_fig(df_long: pd.DataFrame, selected: list[str], unit_key: str, show_total: bool):
-    dff = df_long[df_long["instrument"].isin(selected)].copy()
+def _month_start(year: int, month: int) -> pd.Timestamp:
+    return pd.Timestamp(year=year, month=month, day=1)
 
-    dff["y"] = apply_units(dff["cum_dec"], unit_key)
+def _month_end_exclusive(year: int, month: int) -> pd.Timestamp:
+    # first day of next month (exclusive end boundary)
+    return _month_start(year, month) + pd.offsets.MonthBegin(1)
+
+def _normalize_range(sy: int, sm: int, ey: int, em: int) -> tuple[pd.Timestamp, pd.Timestamp]:
+    start = _month_start(int(sy), int(sm))
+    end_excl = _month_end_exclusive(int(ey), int(em))
+    # If user picked an inverted range, swap
+    if start >= end_excl:
+        start, end_excl = _month_start(int(ey), int(em)), _month_end_exclusive(int(sy), int(sm))
+    return start, end_excl
+
+
+def make_cum_fig(
+    df_long: pd.DataFrame,
+    selected: list[str],
+    show_total: bool,
+    start_year: int,
+    start_month: int,
+    end_year: int,
+    end_month: int,
+):
+    """
+    Cumulative chart rules:
+    - ALWAYS percent (never annualised)
+    - Recompute cumulative within the selected month window
+    - Window defined by start/end year+month (inclusive), with end boundary exclusive
+    """
+    start_ts, end_excl = _normalize_range(start_year, start_month, end_year, end_month)
+
+    dff = df_long[df_long["instrument"].isin(selected)].copy()
+    dff = dff[(dff["month"] >= start_ts) & (dff["month"] < end_excl)].copy()
+    dff = dff.sort_values(["instrument", "month"])
+
+    # Recompute cumulative INSIDE the window
+    dff["cum_window_dec"] = dff.groupby("instrument")["funding_dec"].cumsum()
+
+    # Always percent
+    dff["y"] = dff["cum_window_dec"] * 100.0
+
+    title = f"Cumulative funding (%) — {start_ts.strftime('%Y-%m')} to {(end_excl - pd.offsets.MonthBegin(1)).strftime('%Y-%m')}"
 
     fig = px.line(
         dff,
         x="month",
         y="y",
         color="instrument",
-        title="Cumulative funding",
-        labels={"month": "Month", "y": f"Cumulative ({UNITS[unit_key]['label']})", "instrument": "Instrument"},
+        title=title,
+        labels={"month": "Month", "y": "Cumulative (%)", "instrument": "Instrument"},
     )
     fig.update_layout(
         template="plotly_dark",
         hovermode="x unified",
         legend_title_text="",
         margin=dict(l=20, r=20, t=60, b=20),
+        height=600,
     )
+    fig.update_yaxes(zeroline=True)
 
     if show_total and selected:
         total = (
@@ -109,7 +155,7 @@ def make_cum_fig(df_long: pd.DataFrame, selected: list[str], unit_key: str, show
             .sort_values("month")
         )
         total["cum_total_dec"] = total["funding_dec"].cumsum()
-        total["y_total"] = apply_units(total["cum_total_dec"], unit_key)
+        total["y_total"] = total["cum_total_dec"] * 100.0  # percent
 
         fig.add_trace(
             go.Scatter(
@@ -124,29 +170,7 @@ def make_cum_fig(df_long: pd.DataFrame, selected: list[str], unit_key: str, show
     return fig
 
 
-def make_heatmap(df_wide: pd.DataFrame, selected: list[str], unit_key: str):
-    cols = selected[:] if selected else INSTRUMENTS[:]
-    z = apply_units(df_wide[cols], unit_key).to_numpy()
-
-    fig = go.Figure(
-        data=go.Heatmap(
-            x=cols,
-            y=df_wide["month"],
-            z=z,
-            colorbar=dict(title=f"{UNITS[unit_key]['label']}"),
-        )
-    )
-    fig.update_layout(
-        template="plotly_dark",
-        title="Heatmap (month × instrument)",
-        margin=dict(l=20, r=20, t=60, b=20),
-        yaxis=dict(title="Month"),
-        xaxis=dict(title="Instrument"),
-    )
-    return fig
-
-
-def make_stats_table(df_wide: pd.DataFrame, selected: list[str], unit_key: str) -> pd.DataFrame:
+def make_stats_table(df_wide: pd.DataFrame, selected: list[str]) -> pd.DataFrame:
     cols = selected if selected else INSTRUMENTS
     dff = df_wide[["month"] + cols].copy().sort_values("month")
 
@@ -183,10 +207,9 @@ def make_stats_table(df_wide: pd.DataFrame, selected: list[str], unit_key: str) 
 
     out = pd.DataFrame(rows)
 
-    # Convert units for display (including year columns)
-    unit_mult = UNITS[unit_key]["mult"]
+    # Convert to % for display (including year columns)
     numeric_cols = [c for c in out.columns if c != "Instrument"]
-    out[numeric_cols] = out[numeric_cols].astype(float) * unit_mult
+    out[numeric_cols] = out[numeric_cols].astype(float) * 100.0
 
     # Sort by total
     out = out.sort_values("Total (all time)", ascending=False).reset_index(drop=True)
@@ -198,16 +221,12 @@ def make_stats_table(df_wide: pd.DataFrame, selected: list[str], unit_key: str) 
     return out
 
 
-def df_to_bootstrap_table(df: pd.DataFrame, unit_key: str):
+def df_to_bootstrap_table(df: pd.DataFrame):
     df2 = df.copy()
 
-    # Table-specific formatting
-    if unit_key == "pct":
-        fmt = ".2f"        # <-- 2 decimal places for %
-    else:
-        fmt = UNITS[unit_key]["fmt"]
-
-    suf = UNITS[unit_key]["suffix"]
+    # Always percent formatting
+    fmt = ".2f"
+    suf = "%"
 
     for col in df2.columns:
         if col == "Instrument":
@@ -276,18 +295,6 @@ app.layout = dbc.Container(
 
                                 html.Hr(className="my-3"),
 
-                                html.Div("Units", className="mb-2"),
-                                dbc.RadioItems(
-                                    id="units-radio",
-                                    options=[
-                                        {"label": "Decimal", "value": "dec"},
-                                        {"label": "%", "value": "pct"},
-                                        {"label": "bp", "value": "bp"},
-                                    ],
-                                    value="pct",
-                                    inline=True,
-                                ),
-
                                 dbc.Checklist(
                                     id="annualize-check",
                                     options=[{"label": " Show monthly chart as annualized equivalent (×12)", "value": "ann"}],
@@ -315,26 +322,56 @@ app.layout = dbc.Container(
                 dbc.Col(
                     [
                         dbc.Card(dbc.CardBody(dcc.Graph(id="monthly-graph", config={"displaylogo": False})), className="mb-3"),
+                        dbc.Card(
+                            dbc.CardBody(
+                                [
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(html.Div("Cumulative funding range", className="fw-bold")),
+                                        ],
+                                        className="mb-2"
+                                    ),
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(dbc.Label("Start year", className="mb-1"), width="auto"),
+                                            dbc.Col(
+                                                dcc.Dropdown(
+                                                    id="cum-start-year",
+                                                    options=YEAR_OPTIONS,
+                                                    value=2025,     # set your preferred default
+                                                    clearable=False,
+                                                    style={"minWidth": "120px"},
+                                                ),
+                                                width="auto",
+                                            ),
+                                            dbc.Col(dbc.Label("Start month", className="mb-1"), width="auto"),
+                                            dbc.Col(dcc.Dropdown(id="cum-start-month", options=MONTH_OPTIONS, value=1, clearable=False, style={"minWidth": "120px"}), width="auto"),
+                                            dbc.Col(html.Div(style={"width": "16px"}), width="auto"),  # spacer
+                                            dbc.Col(dbc.Label("End year", className="mb-1"), width="auto"),
+                                            dbc.Col(
+                                                dcc.Dropdown(
+                                                    id="cum-end-year",
+                                                    options=YEAR_OPTIONS,
+                                                    value=2026,     # set your preferred default
+                                                    clearable=False,
+                                                    style={"minWidth": "120px"},
+                                                ),
+                                                width="auto",
+                                            ),
+                                            dbc.Col(dbc.Label("End month", className="mb-1"), width="auto"),
+                                            dbc.Col(dcc.Dropdown(id="cum-end-month", options=MONTH_OPTIONS, value=12, clearable=False, style={"minWidth": "120px"}), width="auto"),
+                                        ],
+                                        className="g-2 align-items-end",
+                                    ),
+                                ]
+                            ),
+                            className="mb-2",
+                        ),
                         dbc.Card(dbc.CardBody(dcc.Graph(id="cumulative-graph", config={"displaylogo": False})), className="mb-3"),
                     ],
                     width=9,
                 ),
             ]
-        ),
-
-        # Heatmap row
-        dbc.Row(
-            [
-                dbc.Col(
-                    dbc.Card(
-                        dbc.CardBody(
-                            dcc.Graph(id="heatmap-graph", config={"displaylogo": False})
-                        )
-                    ),
-                    width=12,
-                ),
-            ],
-            className="mb-3",
         ),
 
         # Quick stats table row (full width)
@@ -378,14 +415,16 @@ def select_all_none(n_all, n_none):
 @app.callback(
     Output("monthly-graph", "figure"),
     Output("cumulative-graph", "figure"),
-    Output("heatmap-graph", "figure"),
     Output("stats-table", "children"),
     Input("instrument-dropdown", "value"),
-    Input("units-radio", "value"),
     Input("annualize-check", "value"),
     Input("show-total", "value"),
+    Input("cum-start-year", "value"),
+    Input("cum-start-month", "value"),
+    Input("cum-end-year", "value"),
+    Input("cum-end-month", "value"),
 )
-def update_charts(selected, unit_key, annualize_value, show_total_value):
+def update_charts(selected, annualize_value, show_total_value, sy, sm, ey, em):
     selected = selected or []
 
     # Fallback if nothing selected
@@ -396,14 +435,21 @@ def update_charts(selected, unit_key, annualize_value, show_total_value):
     annualized = "ann" in (annualize_value or [])
     show_total = "show" in (show_total_value or [])
 
-    monthly_fig = make_monthly_fig(DF_LONG, selected, unit_key, annualized)
-    cum_fig = make_cum_fig(DF_LONG, selected, unit_key, show_total)
-    heatmap_fig = make_heatmap(DF_WIDE, selected, unit_key)
+    # Default range if dropdowns haven't populated for any reason
+    sy = sy if sy is not None else 2025
+    sm = sm if sm is not None else 1
+    ey = ey if ey is not None else 2026
+    em = em if em is not None else 12
 
-    stats_df = make_stats_table(DF_WIDE, selected, unit_key)
-    table = df_to_bootstrap_table(stats_df, unit_key)
+    monthly_fig = make_monthly_fig(DF_LONG, selected, annualized)
 
-    return monthly_fig, cum_fig, heatmap_fig, table
+    # Cumulative chart: percent-only + recomputed within window
+    cum_fig = make_cum_fig(DF_LONG, selected, show_total, sy, sm, ey, em)
+
+    stats_df = make_stats_table(DF_WIDE, selected)
+    table = df_to_bootstrap_table(stats_df)
+
+    return monthly_fig, cum_fig, table
 
 
 if __name__ == "__main__":
