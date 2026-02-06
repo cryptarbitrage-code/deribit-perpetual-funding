@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 
 # ---------- Config ----------
-CSV_PATH = "funding_rate_value_monthly_wide.csv"
+CSV_PATH = "funding_rate_value_monthly_backup.csv"
 BOOTSTRAP_THEME = dbc.themes.DARKLY
 
 

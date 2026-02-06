@@ -165,7 +165,7 @@ instruments = [
 ]
 fetch_monthly_funding_multi_instruments_to_csv(
     instruments=instruments,
-    start_month="2019-03",
+    start_month="2026-01",
     end_month="2026-01",
     csv_path="funding_rate_value_monthly_wide.csv",
     sleep_s=0.21,
