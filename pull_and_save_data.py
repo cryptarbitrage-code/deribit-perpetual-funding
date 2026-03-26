@@ -1,6 +1,6 @@
 import csv
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Iterable
 
 import requests
@@ -163,12 +163,85 @@ instruments = [
     "BNB_USDC-PERPETUAL", "TRUMP_USDC-PERPETUAL", "ALGO_USDC-PERPETUAL",
 
 ]
-fetch_monthly_funding_multi_instruments_to_csv(
-    instruments=instruments,
-    start_month="2026-01",
-    end_month="2026-01",
-    csv_path="funding_rate_value_monthly_wide.csv",
-    sleep_s=0.21,
-    retries=3,
-    error_value=0.0,
-)
+
+def _last_monday_utc(dt: datetime) -> datetime:
+    """Return Monday 00:00 UTC of the current week for a given datetime."""
+    dt = dt.astimezone(timezone.utc)
+    monday = dt - timedelta(days=dt.weekday())
+    return datetime(monday.year, monday.month, monday.day, tzinfo=timezone.utc)
+
+
+def fetch_last_week_funding_multi_instruments_to_csv(
+    instruments: Iterable[str],
+    csv_path: str,
+    *,
+    sleep_s: float = 0.0,
+    timeout_s: float = 30.0,
+    retries: int = 3,
+    retry_backoff_s: float = 1.0,
+    error_value: float = 0.0,
+):
+    """
+    Wide CSV: one row for the last FULL week (Monday → Sunday), one column per instrument.
+    Any error => writes `error_value` (default 0.0) and continues.
+    """
+
+    instruments = [i.strip() for i in instruments if i and i.strip()]
+    if not instruments:
+        raise ValueError("No instruments provided.")
+
+    now = datetime.now(timezone.utc)
+
+    # Get Monday of THIS week
+    this_monday = _last_monday_utc(now)
+
+    # We want LAST FULL week → go back 7 days
+    last_monday = this_monday - timedelta(days=7)
+    last_sunday = this_monday - timedelta(milliseconds=1)
+
+    start_ts = int(last_monday.timestamp() * 1000)
+    end_ts = int(last_sunday.timestamp() * 1000)
+
+    week_label = last_monday.strftime("%Y-%m-%d")
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["week_start", "start_timestamp_ms", "end_timestamp_ms", *instruments])
+
+        values = []
+        for inst in instruments:
+            v = get_funding_rate_value_or_none(
+                inst,
+                start_ts,
+                end_ts,
+                timeout_s=timeout_s,
+                retries=retries,
+                retry_backoff_s=retry_backoff_s,
+            )
+            values.append(v if v is not None else error_value)
+
+            if sleep_s > 0:
+                time.sleep(sleep_s)
+
+        writer.writerow([week_label, start_ts, end_ts, *values])
+
+if __name__ == "__main__":
+    # fetch_monthly_funding_multi_instruments_to_csv(
+    #     instruments=instruments,
+    #     start_month="2026-02",
+    #     end_month="2026-02",
+    #     csv_path="funding_rate_value_monthly_wide.csv",
+    #     sleep_s=0.21,
+    #     retries=3,
+    #     error_value=0.0,
+    # )
+
+    fetch_last_week_funding_multi_instruments_to_csv(
+        instruments=instruments,
+        csv_path="funding_rate_value_last_week_backup.csv",
+        sleep_s=0.21,
+        timeout_s = 60.0,
+        retries=3,
+        retry_backoff_s = 1.0,
+        error_value = 0.0,
+    )
