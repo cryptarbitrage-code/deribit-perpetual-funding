@@ -23,8 +23,84 @@ MONTH_OPTIONS = [
 VALID_YEARS = list(range(2019, 2027))
 YEAR_OPTIONS = [{"label": str(y), "value": y} for y in VALID_YEARS]
 
+# WEEKLY DATA
 
-# ---------- Data loading ----------
+def load_weekly_funding_table(csv_path: str) -> pd.DataFrame:
+    """
+    Reads the weekly wide-format funding CSV and returns a tidy dataframe
+    with one row per instrument.
+
+    Assumes:
+    - one row in the CSV for the latest full week
+    - funding values are decimal rates (e.g. 0.0012 = 0.12%)
+    - annualisation is based on a 7-day period: rate * (365 / 7)
+    """
+    df = pd.read_csv(csv_path)
+
+    if df.empty:
+        raise ValueError("Weekly funding CSV is empty.")
+
+    row = df.iloc[0]
+
+    meta_cols = ["week_start", "start_timestamp_ms", "end_timestamp_ms"]
+    instrument_cols = [col for col in df.columns if col not in meta_cols]
+
+    table_df = pd.DataFrame({
+        "instrument": instrument_cols,
+        "weekly_funding": [row[col] for col in instrument_cols],
+    })
+
+    table_df["annualised_funding"] = table_df["weekly_funding"] * (365 / 7)
+
+    table_df = table_df.sort_values("annualised_funding", ascending=False)
+
+    # Optional display columns as percentages
+    table_df["weekly_funding_pct"] = table_df["weekly_funding"] * 100
+    table_df["annualised_funding_pct"] = table_df["annualised_funding"] * 100
+
+    table_df["week_start"] = row["week_start"]
+
+    return table_df[
+        [
+            "week_start",
+            "instrument",
+            "weekly_funding",
+            "annualised_funding",
+            "weekly_funding_pct",
+            "annualised_funding_pct",
+        ]
+    ]
+
+
+def make_weekly_funding_table(csv_path: str):
+    """
+    Returns a Dash Bootstrap table showing weekly funding and annualised funding.
+    """
+    table_df = load_weekly_funding_table(csv_path).copy()
+
+    display_df = table_df[["instrument", "weekly_funding_pct", "annualised_funding_pct"]].copy()
+    display_df = display_df.rename(columns={
+        "instrument": "Instrument",
+        "weekly_funding_pct": "Weekly Funding (%)",
+        "annualised_funding_pct": "Annualised Funding (%)",
+    })
+
+    display_df["Weekly Funding (%)"] = display_df["Weekly Funding (%)"].map(lambda x: f"{x:.4f}%")
+    display_df["Annualised Funding (%)"] = display_df["Annualised Funding (%)"].map(lambda x: f"{x:.2f}%")
+
+    return dbc.Table.from_dataframe(
+        display_df,
+        striped=True,
+        bordered=True,
+        hover=True,
+        responsive=True,
+        class_name="table-dark"
+    )
+
+weekly_table_df = load_weekly_funding_table("funding_rate_value_last_week_backup.csv")
+week_start = weekly_table_df["week_start"].iloc[0]
+
+# ---------- Monthly Data loading ----------
 def load_data(csv_path: str) -> tuple[pd.DataFrame, list[str]]:
     df = pd.read_csv(
         csv_path,
@@ -388,6 +464,27 @@ app.layout = dbc.Container(
                             [
                                 html.H5("Quick stats", className="mb-2"),
                                 html.Div(id="stats-table"),
+                            ]
+                        )
+                    ),
+                    width=12,
+                ),
+            ],
+            className="mb-4",
+        ),
+
+        # weekly table
+        dbc.Row(
+            [
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+                                dbc.Container([
+                                    html.H5("Last Full Week Funding"),
+                                    html.P(f"Week starting: {week_start}"),
+                                    make_weekly_funding_table("funding_rate_value_last_week_backup.csv"),
+                                ], fluid=True)
                             ]
                         )
                     ),
